@@ -7,6 +7,7 @@ const rl = readline.createInterface({ input, output });
 const FINISHVIEWNUM = 0; // 조회 종료 상수
 const STARTNUM = 1; // 게임 시작 상수
 const RECORDNUM = 2; // 기록 조회 상수
+const STATSNUM = 3; // 통계 조회 상수
 const EXITNUM = 9; // 게임 종료 상수
 
 const WINNINGNUM = 3; // 3스트라이크
@@ -14,7 +15,7 @@ const WINNINGNUM = 3; // 3스트라이크
 const gameId = {
   value: 1,
 };
-// let gameId = 1;
+
 const record = {
   gameId,
   startTime: "", // TODO: 날짜 정확히 나오게
@@ -23,16 +24,19 @@ const record = {
   gameHistory: [],
 };
 const gameRecords = [];
-// 게임 시작시 로그를 출력하는 함수
+
+// 게임 시작 함수
 function startGame() {
   rl.question(
-    "게임을 새로 시작하려면 1, 기록을 보려면 2, 종료하려면 9를 입력하세요.\n",
+    `게임을 새로 시작하려면 ${STARTNUM}, 기록을 보려면 ${RECORDNUM}, 통계를 보려면 ${STATSNUM}, 종료하려면 ${EXITNUM}를 입력하세요.\n`,
     (input) => {
       if (exitGame(input)) return;
       else if (input == STARTNUM) {
         playGame();
       } else if (input == RECORDNUM) {
         viewRecords();
+      } else if (input == STATSNUM) {
+        showGameStats();
       } else {
         console.log("잘못된 입력입니다. 1 또는 9를 입력해주세요.");
         return startGame();
@@ -41,11 +45,13 @@ function startGame() {
   );
 }
 
+
 function playGame() {
   const gameNum = getRandomNumber();
   console.log("\n컴퓨터가 숫자를 뽑았습니다.\n");
   record.gameId = gameId.value++;
   record.startTime = new Date().toLocaleString();
+  //console.log(new Date().toLocaleDateString() + " " +new Date().toLocaleTimeString("it-IT", {hour: "2-digit", minute: "2-digit"}))
   record.total = 0;
   record.gameHistory = [];
   console.log(gameNum); // 디버깅용
@@ -53,12 +59,36 @@ function playGame() {
 }
 
 function askNumber(gameNum) {
-  record.total++;
   rl.question("숫자를 입력해주세요: ", (input) => {
     if (exitGame(input)) return;
+    if (!isVaildPlayerNum(input)) {
+      return askNumber(gameNum);
+    } 
+    record.total++;
     handlePlayerInput(input, gameNum);
   });
 }
+
+// 사용자가 입력한 값에 대한 예외 처리
+function isVaildPlayerNum(playerNum) {
+  if (isNaN(playerNum)) {
+    console.log(`잘못된 입력입니다. 숫자를 입력해주세요.`)
+    return 0
+  }
+  
+  if (playerNum.length !== WINNINGNUM){
+    console.log(`잘못된 입력입니다. ${WINNINGNUM}개의 숫자를 입력해주세요.`)
+    return 0
+  }
+
+  if([...new Set(playerNum)].length !== playerNum.length){
+    console.log(`잘못된 입력입니다. 중복되지 않은 값을 입력해주세요.`)
+    return 0
+  }
+
+  return 1;
+}
+
 
 function handlePlayerInput(input, gameNum) {
   const playerNum = input.split("");
@@ -111,12 +141,14 @@ function isStrike(playerNum, gameNum) {
       ball ? `${ball}볼` : ""
     }`,
   });
+
   console.log(
-    `${strike ? `${strike}스트라이크 ` : ""}${ball ? `${ball}볼` : ""}`
-  ); // todo : 사용자가 중복된 값을 입력했을 경우, 숫자 3개가 아닌경우 - 예외처리 !
+    `${strike ? `${strike}스트라이크 ` : ""}${ball ? `${ball}볼` : ""}${!strike && !ball ?"낫싱" :""}`
+  );
 
   return strike;
 }
+
 
 function exitGame(input) {
   if (input == EXITNUM) {
@@ -129,7 +161,7 @@ function exitGame(input) {
 
 // 기록 전체 조회 및 상세조회 진입용 함수
 function viewRecords() {
-  if (gameId === 0) {
+  if (gameRecords.length === 0) {
     console.log("저장된 게임 기록이 없습니다.");
     startGame();
   }
@@ -169,5 +201,54 @@ function showHistory(gameId, gameHistory) {
   console.log("\n3개의 숫자를 모두 맞히셨습니다.");
   console.log("-------기록 종료-------\n");
 }
+
+function showGameStats(){
+
+  if (gameRecords.length === 0) {
+    console.log("저장된 게임 기록이 없습니다");
+    return startGame();
+  };
+
+  const {minAttempts, maxAttempts, totalAttempts} = calculateGameStats();
+
+  console.log(`\n가장 적은 횟수: ${minAttempts.totalMin}회 - [${minAttempts.gameIds.join(',')}]\n`)
+  console.log(`가장 많은 횟수: ${maxAttempts.totalMax}회 - [${maxAttempts.gameIds.join(',')}]\n`)
+  console.log(`평균 횟수: ${(totalAttempts/gameRecords.length).toFixed(2)}회\n`)
+  console.log(`--------통계 종료-------`)
+  startGame();
+}
+
+function calculateGameStats() {
+  const minAttempts = {
+    totalMin : gameRecords[0].total,
+    gameIds : [],
+  };
+  const maxAttempts = {
+    totalMax : gameRecords[0].total,
+    gameIds : [],
+  };
+
+  const totalAttempts = gameRecords.reduce((acc, cur) => {
+    if (cur.total < minAttempts.totalMin) {
+      minAttempts.totalMin = cur.total
+      minAttempts.gameIds = [cur.gameId]
+    } else if (cur.total === minAttempts.totalMin) {
+      minAttempts.gameIds.push(cur.gameId)
+    }
+
+    if (cur.total > maxAttempts.totalMax) {
+      maxAttempts.totalMax = cur.total
+      maxAttempts.gameIds = [cur.gameId]
+    } else if (cur.total === maxAttempts.totalMax) {
+      maxAttempts.gameIds.push(cur.gameId)
+    }
+    
+    return acc + cur.total
+  }, 0);
+
+  return {minAttempts, maxAttempts, totalAttempts};
+}
+
+
 
 startGame();
