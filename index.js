@@ -17,19 +17,19 @@ const WINNINGNUM = 3; // 3스트라이크
 const gameId = {
   value: 1,
 };
-const gameStore = {
-  condition: 0,
-};
 
-const record = {
-  gameId,
-  startTime: "",
-  endTime: "",
-  total: 0,
-  gameHistory: [],
-  winner: "",
-  condition: 0,
-};
+function createRecord() {
+  return {
+    gameId: gameId.value++,
+    startTime: moment().format("YYYY.MM.DD HH:mm"),
+    endTime: "",
+    total: 0,
+    gameHistory: [],
+    winner: "",
+    condition: 0,
+  };
+}
+
 const gameRecords = [];
 
 // 게임 시작 함수
@@ -37,12 +37,13 @@ function startGame() {
   rl.question(
     `게임을 새로 시작하려면 ${STARTNUM}, 기록을 보려면 ${RECORDNUM}, 통계를 보려면 ${STATSNUM}, 종료하려면 ${EXITNUM}를 입력하세요.\n`,
     (input) => {
-      if (exitGame(input)) return;
-      else if (input == STARTNUM) {
+      const integerInput = parseInt(input);
+      if (exitGame(integerInput)) return;
+      else if (integerInput === STARTNUM) {
         playGame();
-      } else if (input == RECORDNUM) {
+      } else if (integerInput === RECORDNUM) {
         viewRecords();
-      } else if (input == STATSNUM) {
+      } else if (integerInput === STATSNUM) {
         showGameStats();
       } else {
         console.log("잘못된 입력입니다. 1 또는 9를 입력해주세요.");
@@ -51,42 +52,29 @@ function startGame() {
     }
   );
 }
-
+// 게임 초기 설정 함수
 function playGame() {
   rl.question(
     "\n컴퓨터에게 승리하기 위해 몇번만에 성공해야 하나요?\n",
     (input) => {
-      gameStore.condition = parseInt(input);
       const gameNum = getRandomNumber();
       console.log("\n컴퓨터가 숫자를 뽑았습니다.\n");
-      record.gameId = gameId.value++;
-      record.startTime = moment().format("YYYY.MM.DD HH:mm");
-      record.total = 0;
-      record.gameHistory = [];
+      const record = createRecord();
+      record.condition = parseInt(input);
       console.log(gameNum); // 디버깅용
-      askNumber(gameNum);
+      askNumber(gameNum, record);
     }
   );
-
-  // const gameNum = getRandomNumber();
-  // console.log("\n컴퓨터가 숫자를 뽑았습니다.\n");
-  // record.gameId = gameId.value++;
-  // record.startTime = new Date().toLocaleString();
-  // //console.log(new Date().toLocaleDateString() + " " +new Date().toLocaleTimeString("it-IT", {hour: "2-digit", minute: "2-digit"}))
-  // record.total = 0;
-  // record.gameHistory = [];
-  // console.log(gameNum); // 디버깅용
-  // askNumber(gameNum);
 }
-
-function askNumber(gameNum) {
+// 숫자를 입력받음(단, 9면 나감)
+function askNumber(gameNum, record) {
   rl.question("숫자를 입력해주세요: ", (input) => {
-    if (exitGame(input)) return;
+    if (exitGame(parseInt(input))) return;
     if (!isVaildPlayerNum(input)) {
-      return askNumber(gameNum);
+      return askNumber(gameNum, record);
     }
     record.total++;
-    handlePlayerInput(input, gameNum);
+    handlePlayerInput(input, gameNum, record);
   });
 }
 
@@ -109,41 +97,41 @@ function isVaildPlayerNum(playerNum) {
 
   return 1;
 }
+// 입력받은 정상 게임 입력 값 처리 함수
+function handlePlayerInput(input, gameNum, record) {
+  const playerNum = input.split("").map((num) => parseInt(num));
+  const result = getRoundResult(playerNum, gameNum, record);
 
-function handlePlayerInput(input, gameNum) {
-  const playerNum = input.split("");
-  const result = isStrike(playerNum, gameNum);
-
-  if (result == WINNINGNUM) {
-    if (record.total <= gameStore.condition) {
-      record.winner = "사용자";
-    } else {
-      record.winner = "컴퓨터";
-    }
-    console.log(`${record.winner}가 승리하였습니다.`);
-    console.log("\n3개의 숫자를 모두 맞히셨습니다.");
-    console.log("\n------- 게임 종료 -------\n");
+  if (result === WINNINGNUM) {
+    record.winner = getWinner(record.total, record.condition);
+    printGameResult(record.winner);
     record.endTime = moment().format("YYYY.MM.DD HH:mm");
-    gameRecords.push({
-      gameId: record.gameId,
-      startTime: record.startTime, // TODO: 날짜 정확히 나오게
-      endTime: record.endTime,
-      total: record.total,
-      gameHistory: record.gameHistory,
-      winner: record.winner,
-      condition: gameStore.condition,
-    });
+    gameRecords.push(record);
     startGame();
   } else {
-    askNumber(gameNum);
+    askNumber(gameNum, record);
   }
+}
+
+function getWinner(total, condition) {
+  if (total <= condition) {
+    return "사용자";
+  } else {
+    return "컴퓨터";
+  }
+}
+
+function printGameResult(winner) {
+  console.log(`${winner}가 승리하였습니다.`);
+  console.log("\n3개의 숫자를 모두 맞히셨습니다.");
+  console.log("\n------- 게임 종료 -------\n");
 }
 
 // 숫자 세개를 랜덤으로 뽑아서(중복X) 배열로 반환하는 함수
 function getRandomNumber() {
   const gameAnswer = new Set();
-
-  while (gameAnswer.size < 3) {
+  // 3개의 서로 다른 숫자를 뽑을때까지 반복해야 하는 특성상 가장 직관적인 WHILE을 사용했습니다
+  while (gameAnswer.size < WINNINGNUM) {
     gameAnswer.add(Math.floor(Math.random() * 9) + 1);
   }
 
@@ -151,36 +139,40 @@ function getRandomNumber() {
 }
 
 // 스트라이크와 볼을 구분하는 함수
-function isStrike(playerNum, gameNum) {
+function getRoundResult(playerNum, gameNum, record) {
   let strike = 0;
   let ball = 0;
 
   playerNum.reduce((acc, cur, idx) => {
-    if (cur == gameNum[idx]) {
+    if (cur === gameNum[idx]) {
       strike++;
     } else if (gameNum.includes(parseInt(cur))) {
       ball++;
     }
   }, 0);
 
-  record.gameHistory.push({
-    playerNum: playerNum.join(""),
-    gameLog: `${strike ? `${strike}스트라이크 ` : ""}${
-      ball ? `${ball}볼` : ""
-    }`,
-  });
-
-  console.log(
-    `${strike ? `${strike}스트라이크 ` : ""}${ball ? `${ball}볼` : ""}${
-      !strike && !ball ? "낫싱" : ""
-    }`
-  );
+  const gameLog = getGameLog(strike, ball);
+  record.gameHistory.push(getGameHistory(playerNum, gameLog));
+  console.log(gameLog);
 
   return strike;
 }
 
+function getGameLog(strike, ball) {
+  return `${strike ? `${strike}스트라이크 ` : ""}${ball ? `${ball}볼` : ""}${
+    !strike && !ball ? "낫싱" : ""
+  }`;
+}
+
+function getGameHistory(playerNum, gameLog) {
+  return {
+    playerNum: playerNum.join(""),
+    gameLog,
+  };
+}
+
 function exitGame(input) {
-  if (input == EXITNUM) {
+  if (input === EXITNUM) {
     console.log("애플리케이션이 종료되었습니다.");
     rl.close();
     return true;
@@ -196,23 +188,27 @@ function viewRecords() {
   }
 
   console.log("\n게임 기록");
-  gameRecords.reduce((acc, cur, idx) => {
+  gameRecords.reduce((acc, cur) => {
     console.log(
       `[${cur.gameId}] / 시작시간: ${cur.startTime} / 종료시간: ${cur.endTime} / 횟수: ${cur.total} / 승리자: ${cur.winner}`
     );
   }, 0);
+
+  routeHistory();
+}
+
+function routeHistory() {
   rl.question(
     "\n확인할 게임 번호를 입력하세요 (종료하려면 0을 입력): ",
     (input) => {
-      if (exitGame(input)) return;
-      if (input == FINISHVIEWNUM) {
+      if (parseInt(input) === FINISHVIEWNUM) {
         return startGame();
       }
       if (!gameRecords.some((element) => element.gameId === parseInt(input))) {
         console.log("존재하지 않는 게임 번호입니다.");
         return viewRecords();
       }
-      showHistory(
+      printHistory(
         parseInt(input),
         gameRecords[parseInt(input) - 1].gameHistory
       );
@@ -221,9 +217,9 @@ function viewRecords() {
   );
 }
 
-function showHistory(gameId, gameHistory) {
+function printHistory(gameId, gameHistory) {
   console.log(`\n${gameId}번 게임 결과`);
-  gameHistory.reduce((acc, cur, idx) => {
+  gameHistory.reduce((acc, cur) => {
     console.log(`숫자를 입력해주세요: ${cur.playerNum}`);
     console.log(cur.gameLog);
   }, 0);
@@ -242,7 +238,6 @@ function showGameStats() {
   const {
     minAttempts,
     maxAttempts,
-    totalAttempts,
     maxCondition,
     minCondition,
     totalCondition,
@@ -250,23 +245,44 @@ function showGameStats() {
     userWinCount,
   } = calculateGameStats();
 
+  printAttempts(minAttempts, maxAttempts);
+  printConditions(maxCondition, minCondition);
+  printAverageCondition(totalCondition, totalGameLength);
+  printWinCounts(userWinCount, computerWinCount, totalGameLength);
+  // console.log(
+  //   `평균 횟수: ${(totalAttempts / totalGameLength).toFixed(2)}회\n`
+  // );
+  console.log(`--------통계 종료-------\n`);
+  startGame();
+}
+
+function printAttempts(minAttempts, maxAttempts) {
   console.log(
     `\n가장 적은 횟수: ${minAttempts.totalMin}회 - [${minAttempts.gameIds.join(
       ","
-    )}]\n`
+    )}]`
   );
   console.log(
     `가장 많은 횟수: ${maxAttempts.totalMax}회 - [${maxAttempts.gameIds.join(
       ","
-    )}]\n`
+    )}]`
   );
+}
+
+function printConditions(maxCondition, minCondition) {
   console.log(`가장 많이 적용된 승리/패배 횟수: ${maxCondition}회`);
-  console.log(`가장 많이 적용된 승리/패배 횟수: ${minCondition}회`);
+  console.log(`가장 적게 적용된 승리/패배 횟수: ${minCondition}회`);
+}
+
+function printAverageCondition(totalCondition, totalGameLength) {
   console.log(
     `적용된 승리/패배 횟수 평균: ${(totalCondition / totalGameLength).toFixed(
       2
     )}회`
   );
+}
+
+function printWinCounts(userWinCount, computerWinCount, totalGameLength) {
   console.log(
     `컴퓨터 전적: ${computerWinCount}승 / ${userWinCount}패 / ${(
       (computerWinCount * 100) /
@@ -279,11 +295,6 @@ function showGameStats() {
       totalGameLength
     ).toFixed(0)}%\n`
   );
-  // console.log(
-  //   `평균 횟수: ${(totalAttempts / totalGameLength).toFixed(2)}회\n`
-  // );
-  console.log(`--------통계 종료-------\n`);
-  startGame();
 }
 
 function calculateGameStats() {
@@ -297,22 +308,45 @@ function calculateGameStats() {
   };
 
   const totalAttempts = gameRecords.reduce((acc, cur) => {
-    if (cur.total < minAttempts.totalMin) {
-      minAttempts.totalMin = cur.total;
-      minAttempts.gameIds = [cur.gameId];
-    } else if (cur.total === minAttempts.totalMin) {
-      minAttempts.gameIds.push(cur.gameId);
-    }
-
-    if (cur.total > maxAttempts.totalMax) {
-      maxAttempts.totalMax = cur.total;
-      maxAttempts.gameIds = [cur.gameId];
-    } else if (cur.total === maxAttempts.totalMax) {
-      maxAttempts.gameIds.push(cur.gameId);
-    }
+    updateMinAttempts(minAttempts, cur);
+    updateMaxAttempts(maxAttempts, cur);
     return acc + cur.total;
   }, 0);
 
+  const { maxCondition, minCondition } = calculateCondition();
+  const totalCondition = calculateTotalCondition();
+  const { computerWinCount, userWinCount } = calculateWinCount();
+
+  return {
+    minAttempts,
+    maxAttempts,
+    maxCondition,
+    minCondition,
+    totalCondition,
+    computerWinCount,
+    userWinCount,
+  };
+}
+
+function updateMinAttempts(minAttempts, cur) {
+  if (cur.total < minAttempts.totalMin) {
+    minAttempts.totalMin = cur.total;
+    minAttempts.gameIds = [cur.gameId];
+  } else if (cur.total === minAttempts.totalMin) {
+    minAttempts.gameIds.push(cur.gameId);
+  }
+}
+
+function updateMaxAttempts(maxAttempts, cur) {
+  if (cur.total > maxAttempts.totalMax) {
+    maxAttempts.totalMax = cur.total;
+    maxAttempts.gameIds = [cur.gameId];
+  } else if (cur.total === maxAttempts.totalMax) {
+    maxAttempts.gameIds.push(cur.gameId);
+  }
+}
+
+function calculateCondition() {
   const maxCondition = gameRecords.reduce((acc, cur) => {
     return acc < cur.condition ? cur.condition : acc;
   }, 0);
@@ -321,10 +355,17 @@ function calculateGameStats() {
     return acc > cur.condition ? cur.condition : acc;
   }, Number.MAX_SAFE_INTEGER);
 
+  return { maxCondition, minCondition };
+}
+
+function calculateTotalCondition() {
   const totalCondition = gameRecords.reduce((acc, cur) => {
     return acc + cur.condition;
   }, 0);
+  return totalCondition;
+}
 
+function calculateWinCount() {
   const computerWinCount = gameRecords.filter(
     (game) => game.winner === COMPUTER
   ).length;
@@ -333,16 +374,7 @@ function calculateGameStats() {
     (game) => game.winner === USER
   ).length;
 
-  return {
-    minAttempts,
-    maxAttempts,
-    totalAttempts,
-    maxCondition,
-    minCondition,
-    totalCondition,
-    computerWinCount,
-    userWinCount,
-  };
+  return { computerWinCount, userWinCount };
 }
 
 startGame();
