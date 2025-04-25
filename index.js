@@ -191,7 +191,7 @@ function exitGame(input) {
 function viewRecords(records) {
   if (records.length === 0) {
     console.log("저장된 게임 기록이 없습니다.");
-    startGame();
+    return startGame();
   }
 
   console.log("\n게임 기록");
@@ -202,7 +202,7 @@ function viewRecords(records) {
     );
   });
 
-  routeHistory(gameRecords);
+  return routeHistory(gameRecords);
 }
 
 function routeHistory(records) {
@@ -238,7 +238,7 @@ function viewGameStats(records) {
   const gameRecordsLength = records.length;
 
   if (gameRecordsLength === 0) {
-    console.log("저장된 게임 기록이 없습니다");
+    console.log("저장된 게임 기록이 없습니다.");
     return startGame();
   }
 
